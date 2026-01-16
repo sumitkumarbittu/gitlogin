@@ -138,153 +138,157 @@
             }
         }
 
-        // Handle repository selection
-        document.getElementById('repo').addEventListener('change', (e) => {
-            const createBtn = document.getElementById('create-repo-btn');
-            const createForm = document.getElementById('create-repo-form');
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check authentication status
+            checkAuth();
             
-            if (e.target.value === '__create_new__') {
-                createBtn.classList.remove('hidden');
-                createForm.classList.remove('hidden');
-            } else {
-                createBtn.classList.add('hidden');
-                createForm.classList.add('hidden');
-            }
-        });
-        
-        // Handle create repository button
-        document.getElementById('create-repo-btn').addEventListener('click', async () => {
-            const repoName = document.getElementById('new-repo-name').value.trim();
-            const isPrivate = document.getElementById('new-repo-private').checked;
-            
-            if (!repoName) {
-                alert('Please enter a repository name');
-                return;
-            }
-            
-            try {
-                const formData = new FormData();
-                formData.append('name', repoName);
-                formData.append('description', 'Created via GitHub File Uploader');
-                formData.append('private', isPrivate);
+            // Handle repository selection
+            document.getElementById('repo').addEventListener('change', (e) => {
+                const createBtn = document.getElementById('create-repo-btn');
+                const createForm = document.getElementById('create-repo-form');
                 
-                const response = await fetch(`${API_BASE}/api/repo/create`, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    // Reload repositories and select the new one
-                    await loadRepos();
-                    document.getElementById('repo').value = result.repo.full_name;
-                    
-                    // Hide create form
-                    document.getElementById('create-repo-btn').classList.add('hidden');
-                    document.getElementById('create-repo-form').classList.add('hidden');
-                    
-                    // Clear form
-                    document.getElementById('new-repo-name').value = '';
-                    document.getElementById('new-repo-private').checked = false;
-                    
-                    alert(`Repository "${result.repo.name}" created successfully!`);
+                if (e.target.value === '__create_new__') {
+                    createBtn.classList.remove('hidden');
+                    createForm.classList.remove('hidden');
                 } else {
-                    alert(`Failed to create repository: ${result.error || 'Unknown error'}`);
+                    createBtn.classList.add('hidden');
+                    createForm.classList.add('hidden');
                 }
-            } catch (error) {
-                console.error('Error creating repository:', error);
-                alert('Failed to create repository: Network error');
-            }
-        });
-        
-        // Handle cancel create repository
-        document.getElementById('cancel-create-repo').addEventListener('click', () => {
-            document.getElementById('repo').value = '';
-            document.getElementById('create-repo-btn').classList.add('hidden');
-            document.getElementById('create-repo-form').classList.add('hidden');
-            document.getElementById('new-repo-name').value = '';
-            document.getElementById('new-repo-private').checked = false;
-        });
-        
-        // Handle file upload
-        document.getElementById('upload-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
+            });
             
-            const repoSelect = document.getElementById('repo');
-            const selectedRepo = repoSelect.value;
-            
-            if (!selectedRepo || selectedRepo === '') {
-                alert('Please select a repository');
-                return;
-            }
-            
-            if (selectedRepo === '__create_new__') {
-                alert('Please create a repository first or select an existing one');
-                return;
-            }
-            
-            const formData = new FormData();
-            const fileInput = document.getElementById('files');
-            const files = fileInput.files;
-            
-            if (!files || files.length === 0) {
-                alert('Please select files to upload');
-                return;
-            }
-            
-            for (let i = 0; i < files.length; i++) {
-                formData.append('files', files[i]);
-            }
-            
-            formData.append('repo', selectedRepo);
-            formData.append('path', document.getElementById('path').value);
-            formData.append('branch', document.getElementById('branch').value);
-            
-            try {
-                const response = await fetch(`${API_BASE}/api/upload`, {
-                    method: 'POST',
-                    body: formData
-                });
+            // Handle create repository button
+            document.getElementById('create-repo-btn').addEventListener('click', async () => {
+                const repoName = document.getElementById('new-repo-name').value.trim();
+                const isPrivate = document.getElementById('new-repo-private').checked;
                 
-                const result = await response.json();
-                const resultDiv = document.getElementById('upload-result');
+                if (!repoName) {
+                    alert('Please enter a repository name');
+                    return;
+                }
                 
-                if (result.success) {
-                    resultDiv.innerHTML = `
-                        <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-                            <p class="font-bold">Upload successful!</p>
-                            <ul class="mt-2">
-                                ${result.uploaded_files.map(file => `<li><a href="${file.url}" target="_blank" class="text-blue-600 hover:underline">${file.filename}</a></li>`).join('')}
-                            </ul>
-                        </div>
-                    `;
-                    fileInput.value = '';
-                } else {
+                try {
+                    const formData = new FormData();
+                    formData.append('name', repoName);
+                    formData.append('description', 'Created via GitHub File Uploader');
+                    formData.append('private', isPrivate.toString());
+                    
+                    const response = await fetch(`${API_BASE}/api/repo/create`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // Reload repositories and select the new one
+                        await loadRepos();
+                        document.getElementById('repo').value = result.repo.full_name;
+                        
+                        // Hide create form
+                        document.getElementById('create-repo-btn').classList.add('hidden');
+                        document.getElementById('create-repo-form').classList.add('hidden');
+                        
+                        // Clear form
+                        document.getElementById('new-repo-name').value = '';
+                        document.getElementById('new-repo-private').checked = false;
+                        
+                        alert(`Repository "${result.repo.name}" created successfully!`);
+                    } else {
+                        alert(`Failed to create repository: ${result.error || 'Unknown error'}`);
+                    }
+                } catch (error) {
+                    console.error('Error creating repository:', error);
+                    const errorData = await error.response?.json?.() || {};
+                    alert(`Failed to create repository: ${errorData.error || error.message || 'Network error'}`);
+                }
+            });
+            
+            // Handle cancel create repository
+            document.getElementById('cancel-create-repo').addEventListener('click', () => {
+                document.getElementById('repo').value = '';
+                document.getElementById('create-repo-btn').classList.add('hidden');
+                document.getElementById('create-repo-form').classList.add('hidden');
+                document.getElementById('new-repo-name').value = '';
+                document.getElementById('new-repo-private').checked = false;
+            });
+            
+            // Handle file upload
+            document.getElementById('upload-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const repoSelect = document.getElementById('repo');
+                const selectedRepo = repoSelect.value;
+                
+                if (!selectedRepo || selectedRepo === '') {
+                    alert('Please select a repository');
+                    return;
+                }
+                
+                if (selectedRepo === '__create_new__') {
+                    alert('Please create a repository first or select an existing one');
+                    return;
+                }
+                
+                const formData = new FormData();
+                const fileInput = document.getElementById('files');
+                const files = fileInput.files;
+                
+                if (!files || files.length === 0) {
+                    alert('Please select files to upload');
+                    return;
+                }
+                
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('files', files[i]);
+                }
+                
+                formData.append('repo', selectedRepo);
+                formData.append('path', document.getElementById('path').value);
+                formData.append('branch', document.getElementById('branch').value);
+                
+                try {
+                    const response = await fetch(`${API_BASE}/api/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    const resultDiv = document.getElementById('upload-result');
+                    
+                    if (result.success) {
+                        resultDiv.innerHTML = `
+                            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+                                <p class="font-bold">Upload successful!</p>
+                                <ul class="mt-2">
+                                    ${result.uploaded_files.map(file => `<li><a href="${file.url}" target="_blank" class="text-blue-600 hover:underline">${file.filename}</a></li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                        fileInput.value = '';
+                    } else {
+                        resultDiv.innerHTML = `
+                            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                                <p class="font-bold">Upload failed!</p>
+                                <p>${result.error || 'Unknown error'}</p>
+                            </div>
+                        `;
+                    }
+                    
+                    resultDiv.classList.remove('hidden');
+                } catch (error) {
+                    console.error('Error uploading files:', error);
+                    const resultDiv = document.getElementById('upload-result');
                     resultDiv.innerHTML = `
                         <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
                             <p class="font-bold">Upload failed!</p>
-                            <p>${result.error || 'Unknown error'}</p>
+                            <p>Network error occurred</p>
                         </div>
                     `;
+                    resultDiv.classList.remove('hidden');
                 }
-                
-                resultDiv.classList.remove('hidden');
-            } catch (error) {
-                console.error('Error uploading files:', error);
-                const resultDiv = document.getElementById('upload-result');
-                resultDiv.innerHTML = `
-                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                        <p class="font-bold">Upload failed!</p>
-                        <p>Network error occurred</p>
-                    </div>
-                `;
-                resultDiv.classList.remove('hidden');
-            }
+            });
         });
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', checkAuth);
     </script>
 </body>
 </html>

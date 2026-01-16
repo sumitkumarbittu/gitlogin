@@ -1,8 +1,62 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>GitHub File Uploader</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .loading-spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .btn-loading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        
+        .file-drop-zone {
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s ease;
+        }
+        
+        .file-drop-zone.drag-over {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+    </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="container mx-auto px-4 py-8">
@@ -15,58 +69,120 @@
                 </a>
             </div>
 
-            <div id="user-section" class="hidden">
+            <div id="user-section" class="hidden fade-in">
                 <div class="mb-6">
-                    <div class="flex items-center mb-4">
-                        <img id="user-avatar" src="" alt="" class="w-12 h-12 rounded-full mr-4">
-                        <div>
-                            <h2 id="user-name" class="text-xl font-semibold"></h2>
-                            <p id="user-login" class="text-gray-600"></p>
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center">
+                            <img id="user-avatar" src="" alt="" class="w-12 h-12 rounded-full mr-4 border-2 border-gray-200">
+                            <div>
+                                <h2 id="user-name" class="text-xl font-semibold text-gray-800"></h2>
+                                <p id="user-login" class="text-gray-600 text-sm"></p>
+                            </div>
                         </div>
+                        <button onclick="logout()" class="text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1 rounded-md transition-colors">
+                            <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                        </button>
                     </div>
-                    <a href="/auth/logout" class="text-blue-600 hover:underline">Logout</a>
                 </div>
 
                 <div class="border-t border-gray-200 pt-6">
-                    <h3 class="text-lg font-medium mb-4">Upload Files</h3>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-gray-800">
+                            <i class="fas fa-cloud-upload-alt mr-2 text-blue-600"></i>Upload Files
+                        </h3>
+                        <button onclick="refreshRepos()" class="text-sm text-gray-600 hover:text-gray-800 transition-colors">
+                            <i class="fas fa-sync-alt mr-1"></i>Refresh Repos
+                        </button>
+                    </div>
                     <form id="upload-form" class="space-y-4">
                         <div>
-                            <label for="files" class="block text-sm font-medium text-gray-700 mb-1">Choose files</label>
-                            <input type="file" name="files" id="files" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                            <label for="files" class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-file mr-1"></i>Choose files
+                            </label>
+                            <div id="file-drop-zone" class="file-drop-zone rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 transition-colors">
+                                <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
+                                <p class="text-sm text-gray-600 mb-2">Drag & drop files here or click to browse</p>
+                                <input type="file" name="files" id="files" multiple class="hidden">
+                                <button type="button" onclick="document.getElementById('files').click()" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
+                                    <i class="fas fa-folder-open mr-2"></i>Browse Files
+                                </button>
+                            </div>
+                            <div id="file-list" class="mt-2 space-y-1"></div>
                         </div>
                         <div>
-                            <label for="repo" class="block text-sm font-medium text-gray-700 mb-1">Repository</label>
+                            <label for="repo" class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fab fa-github mr-1"></i>Repository
+                            </label>
                             <div class="flex gap-2">
-                                <select name="repo" id="repo" class="mt-1 block flex-1 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                                    <option value="">Select a repository...</option>
-                                    <option value="__create_new__">+ Create New Repository</option>
-                                </select>
-                                <button type="button" id="create-repo-btn" class="mt-1 px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 hidden">Create</button>
+                                <div class="relative flex-1">
+                                    <select name="repo" id="repo" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md appearance-none bg-white">
+                                        <option value="">Select a repository...</option>
+                                        <option value="__create_new__">+ Create New Repository</option>
+                                    </select>
+                                    <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                                        <i class="fas fa-chevron-down text-gray-400"></i>
+                                    </div>
+                                </div>
+                                <button type="button" id="create-repo-btn" class="mt-1 px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors hidden">
+                                    <i class="fas fa-plus mr-1"></i>Create
+                                </button>
                             </div>
-                            <div id="create-repo-form" class="hidden mt-2">
-                                <input type="text" id="new-repo-name" placeholder="New repository name" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm mb-2">
-                                <div class="flex gap-2">
-                                    <label class="flex items-center">
-                                        <input type="checkbox" id="new-repo-private" class="mr-2">
-                                        <span class="text-sm">Private</span>
-                                    </label>
-                                    <button type="button" id="cancel-create-repo" class="px-3 py-1 bg-gray-500 text-white text-sm rounded-md hover:bg-gray-600">Cancel</button>
+                            <div id="create-repo-form" class="hidden mt-3 p-3 bg-gray-50 rounded-lg fade-in">
+                                <div class="space-y-3">
+                                    <div>
+                                        <label for="new-repo-name" class="block text-xs font-medium text-gray-700 mb-1">Repository Name</label>
+                                        <div class="relative">
+                                            <input type="text" id="new-repo-name" placeholder="my-awesome-repo" class="block w-full pl-9 pr-3 py-2 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i class="fas fa-folder text-gray-400"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <label class="flex items-center cursor-pointer">
+                                            <input type="checkbox" id="new-repo-private" class="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                            <span class="text-sm text-gray-700">
+                                                <i class="fas fa-lock mr-1 text-gray-400"></i>Private Repository
+                                            </span>
+                                        </label>
+                                        <div class="space-x-2">
+                                            <button type="button" id="cancel-create-repo" class="px-3 py-1 bg-gray-500 text-white text-xs rounded-md hover:bg-gray-600 transition-colors">
+                                                <i class="fas fa-times mr-1"></i>Cancel
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label for="path" class="block text-sm font-medium text-gray-700 mb-1">Path (optional)</label>
-                                <input type="text" name="path" id="path" placeholder="e.g., docs/" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                                <label for="path" class="block text-sm font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-folder-open mr-1"></i>Path (optional)
+                                </label>
+                                <div class="relative">
+                                    <input type="text" name="path" id="path" placeholder="e.g., docs/" class="mt-1 block w-full pl-8 pr-3 py-2 text-sm border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i class="fas fa-folder text-gray-400 text-sm"></i>
+                                    </div>
+                                </div>
                             </div>
                             <div>
-                                <label for="branch" class="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-                                <input type="text" name="branch" id="branch" value="main" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                                <label for="branch" class="block text-sm font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-code-branch mr-1"></i>Branch
+                                </label>
+                                <div class="relative">
+                                    <input type="text" name="branch" id="branch" value="main" class="mt-1 block w-full pl-8 pr-3 py-2 text-sm border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i class="fas fa-code-branch text-gray-400 text-sm"></i>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div>
-                            <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                Upload Files
+                            <button type="submit" id="upload-btn" class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-[1.02]">
+                                <i class="fas fa-cloud-upload-alt mr-2"></i>
+                                <span id="upload-btn-text">Upload Files</span>
+                                <div id="upload-spinner" class="loading-spinner ml-2 hidden"></div>
                             </button>
                         </div>
                     </form>
@@ -80,16 +196,103 @@
         // Global API base URL
         const API_BASE = "https://gitlogin-b4bd.onrender.com";
         
+        // Toast notification system
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2`;
+            toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease-in forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        
+        // File drag and drop
+        function setupDragAndDrop() {
+            const dropZone = document.getElementById('file-drop-zone');
+            const fileInput = document.getElementById('files');
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+            
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('drag-over');
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                
+                const files = Array.from(e.dataTransfer.files);
+                fileInput.files = e.dataTransfer.files;
+                updateFileList(files);
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                updateFileList(files);
+            });
+        }
+        
+        // Update file list display
+        function updateFileList(files) {
+            const fileList = document.getElementById('file-list');
+            
+            if (files.length === 0) {
+                fileList.innerHTML = '';
+                return;
+            }
+            
+            fileList.innerHTML = `
+                <div class="text-sm text-gray-600">
+                    <i class="fas fa-paperclip mr-1"></i>
+                    ${files.length} file${files.length > 1 ? 's' : ''} selected:
+                    ${files.map(file => `<span class="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">${file.name}</span>`).join('')}
+                </div>
+            `;
+        }
+        
+        // Logout function
+        async function logout() {
+            try {
+                await fetch(`${API_BASE}/auth/logout`);
+                window.location.reload();
+            } catch (error) {
+                console.error('Logout error:', error);
+                window.location.reload();
+            }
+        }
+        
+        // Refresh repositories
+        async function refreshRepos() {
+            const repoSelect = document.getElementById('repo');
+            repoSelect.innerHTML = '<option value="">Refreshing repositories...</option>';
+            await loadRepos();
+            showToast('Repositories refreshed successfully!', 'success');
+        }
+        
         // Check authentication status
         async function checkAuth() {
+            console.log('Checking authentication...');
             try {
                 const response = await fetch(`${API_BASE}/auth/status`);
+                console.log('Auth response status:', response.status);
                 const data = await response.json();
+                console.log('Auth data:', data);
                 
                 if (data.authenticated) {
+                    console.log('User is authenticated:', data.user);
                     showUserSection(data.user);
                     loadRepos();
                 } else {
+                    console.log('User not authenticated');
                     showLoginSection();
                 }
             } catch (error) {
@@ -114,9 +317,12 @@
         }
 
         async function loadRepos() {
+            console.log('Loading repositories...');
             try {
                 const response = await fetch(`${API_BASE}/api/repos`);
+                console.log('Response status:', response.status);
                 const repos = await response.json();
+                console.log('Repositories loaded:', repos);
                 const select = document.getElementById('repo');
                 
                 select.innerHTML = '<option value="">Select a repository...</option><option value="__create_new__">+ Create New Repository</option>';
@@ -128,6 +334,7 @@
                         option.textContent = repo.name;
                         select.appendChild(option);
                     });
+                    console.log('Repositories added to dropdown');
                 } else {
                     console.warn('No repositories found');
                 }
@@ -135,37 +342,58 @@
                 console.error('Error loading repositories:', error);
                 const select = document.getElementById('repo');
                 select.innerHTML = '<option value="">Failed to load repositories</option>';
+                showToast('Failed to load repositories', 'error');
             }
         }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, initializing...');
+            
             // Check authentication status
             checkAuth();
             
+            // Setup drag and drop first
+            setupDragAndDrop();
+            
             // Handle repository selection
-            document.getElementById('repo').addEventListener('change', (e) => {
-                const createBtn = document.getElementById('create-repo-btn');
-                const createForm = document.getElementById('create-repo-form');
-                
-                if (e.target.value === '__create_new__') {
-                    createBtn.classList.remove('hidden');
-                    createForm.classList.remove('hidden');
-                } else {
-                    createBtn.classList.add('hidden');
-                    createForm.classList.add('hidden');
-                }
-            });
+            const repoSelect = document.getElementById('repo');
+            if (repoSelect) {
+                console.log('Repo select found, adding change listener');
+                repoSelect.addEventListener('change', (e) => {
+                    console.log('Repo changed to:', e.target.value);
+                    const createBtn = document.getElementById('create-repo-btn');
+                    const createForm = document.getElementById('create-repo-form');
+                    
+                    if (e.target.value === '__create_new__') {
+                        createBtn.classList.remove('hidden');
+                        createForm.classList.remove('hidden');
+                        // Clear the form fields
+                        document.getElementById('new-repo-name').value = '';
+                        document.getElementById('new-repo-private').checked = false;
+                    } else {
+                        createBtn.classList.add('hidden');
+                        createForm.classList.add('hidden');
+                    }
+                });
+            } else {
+                console.error('Repo select not found!');
+            }
             
             // Handle create repository button
             document.getElementById('create-repo-btn').addEventListener('click', async () => {
                 const repoName = document.getElementById('new-repo-name').value.trim();
                 const isPrivate = document.getElementById('new-repo-private').checked;
+                const createBtn = document.getElementById('create-repo-btn');
                 
                 if (!repoName) {
-                    alert('Please enter a repository name');
+                    showToast('Please enter a repository name', 'error');
                     return;
                 }
+                
+                // Show loading state
+                createBtn.classList.add('btn-loading');
+                createBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Creating...';
                 
                 try {
                     const formData = new FormData();
@@ -193,20 +421,25 @@
                         document.getElementById('new-repo-name').value = '';
                         document.getElementById('new-repo-private').checked = false;
                         
-                        alert(`Repository "${result.repo.name}" created successfully!`);
+                        showToast(`Repository "${result.repo.name}" created successfully!`, 'success');
                     } else {
-                        alert(`Failed to create repository: ${result.error || 'Unknown error'}`);
+                        showToast(`Failed to create repository: ${result.error || 'Unknown error'}`, 'error');
                     }
                 } catch (error) {
                     console.error('Error creating repository:', error);
                     const errorData = await error.response?.json?.() || {};
-                    alert(`Failed to create repository: ${errorData.error || error.message || 'Network error'}`);
+                    showToast(`Failed to create repository: ${errorData.error || error.message || 'Network error'}`, 'error');
+                } finally {
+                    // Reset button state
+                    createBtn.classList.remove('btn-loading');
+                    createBtn.innerHTML = '<i class="fas fa-plus mr-1"></i>Create';
                 }
             });
             
             // Handle cancel create repository
             document.getElementById('cancel-create-repo').addEventListener('click', () => {
-                document.getElementById('repo').value = '';
+                const repoSelect = document.getElementById('repo');
+                repoSelect.value = ''; // Reset to first option
                 document.getElementById('create-repo-btn').classList.add('hidden');
                 document.getElementById('create-repo-form').classList.add('hidden');
                 document.getElementById('new-repo-name').value = '';
@@ -221,12 +454,12 @@
                 const selectedRepo = repoSelect.value;
                 
                 if (!selectedRepo || selectedRepo === '') {
-                    alert('Please select a repository');
+                    showToast('Please select a repository', 'error');
                     return;
                 }
                 
                 if (selectedRepo === '__create_new__') {
-                    alert('Please create a repository first or select an existing one');
+                    showToast('Please create a repository first or select an existing one', 'error');
                     return;
                 }
                 
@@ -235,9 +468,18 @@
                 const files = fileInput.files;
                 
                 if (!files || files.length === 0) {
-                    alert('Please select files to upload');
+                    showToast('Please select files to upload', 'error');
                     return;
                 }
+                
+                // Show loading state
+                const uploadBtn = document.getElementById('upload-btn');
+                const uploadBtnText = document.getElementById('upload-btn-text');
+                const uploadSpinner = document.getElementById('upload-spinner');
+                
+                uploadBtn.classList.add('btn-loading');
+                uploadBtnText.textContent = 'Uploading...';
+                uploadSpinner.classList.remove('hidden');
                 
                 for (let i = 0; i < files.length; i++) {
                     formData.append('files', files[i]);
@@ -258,21 +500,37 @@
                     
                     if (result.success) {
                         resultDiv.innerHTML = `
-                            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-                                <p class="font-bold">Upload successful!</p>
-                                <ul class="mt-2">
-                                    ${result.uploaded_files.map(file => `<li><a href="${file.url}" target="_blank" class="text-blue-600 hover:underline">${file.filename}</a></li>`).join('')}
+                            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg fade-in">
+                                <div class="flex items-center mb-2">
+                                    <i class="fas fa-check-circle mr-2"></i>
+                                    <p class="font-bold">Upload successful!</p>
+                                </div>
+                                <ul class="mt-2 space-y-1">
+                                    ${result.uploaded_files.map(file => `
+                                        <li class="flex items-center">
+                                            <i class="fas fa-file mr-2 text-green-600"></i>
+                                            <a href="${file.url}" target="_blank" class="text-blue-600 hover:underline">${file.filename}</a>
+                                        </li>
+                                    `).join('')}
                                 </ul>
                             </div>
                         `;
                         fileInput.value = '';
+                        updateFileList([]);
+                        showToast(`Successfully uploaded ${result.uploaded_files.length} file${result.uploaded_files.length > 1 ? 's' : ''}!`, 'success');
                     } else {
                         resultDiv.innerHTML = `
-                            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                                <p class="font-bold">Upload failed!</p>
-                                <p>${result.error || 'Unknown error'}</p>
+                            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg fade-in">
+                                <div class="flex items-center">
+                                    <i class="fas fa-exclamation-circle mr-2"></i>
+                                    <div>
+                                        <p class="font-bold">Upload failed!</p>
+                                        <p class="text-sm">${result.error || 'Unknown error'}</p>
+                                    </div>
+                                </div>
                             </div>
                         `;
+                        showToast('Upload failed', 'error');
                     }
                     
                     resultDiv.classList.remove('hidden');
@@ -280,14 +538,28 @@
                     console.error('Error uploading files:', error);
                     const resultDiv = document.getElementById('upload-result');
                     resultDiv.innerHTML = `
-                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                            <p class="font-bold">Upload failed!</p>
-                            <p>Network error occurred</p>
+                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg fade-in">
+                            <div class="flex items-center">
+                                <i class="fas fa-exclamation-circle mr-2"></i>
+                                <div>
+                                    <p class="font-bold">Upload failed!</p>
+                                    <p class="text-sm">Network error occurred</p>
+                                </div>
+                            </div>
                         </div>
                     `;
                     resultDiv.classList.remove('hidden');
+                    showToast('Network error occurred', 'error');
+                } finally {
+                    // Reset button state
+                    uploadBtn.classList.remove('btn-loading');
+                    uploadBtnText.textContent = 'Upload Files';
+                    uploadSpinner.classList.add('hidden');
                 }
             });
+            
+            // Setup drag and drop
+            setupDragAndDrop();
         });
     </script>
 </body>

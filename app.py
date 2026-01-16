@@ -352,7 +352,7 @@ async def upload_to_github(
     if path:
         file_path = f"{path}/{filename}"
     else:
-        file_path = f"uploads/{filename}"
+        file_path = filename
     
     # GitHub API URL
     url = f"https://api.github.com/repos/{repo_full_name}/contents/{file_path}"

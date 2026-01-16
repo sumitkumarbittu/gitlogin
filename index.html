@@ -36,9 +36,23 @@
                         </div>
                         <div>
                             <label for="repo" class="block text-sm font-medium text-gray-700 mb-1">Repository</label>
-                            <select name="repo" id="repo" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                                <option value="">Loading repositories...</option>
-                            </select>
+                            <div class="flex gap-2">
+                                <select name="repo" id="repo" class="mt-1 block flex-1 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                                    <option value="">Select a repository...</option>
+                                    <option value="__create_new__">+ Create New Repository</option>
+                                </select>
+                                <button type="button" id="create-repo-btn" class="mt-1 px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 hidden">Create</button>
+                            </div>
+                            <div id="create-repo-form" class="hidden mt-2">
+                                <input type="text" id="new-repo-name" placeholder="New repository name" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm mb-2">
+                                <div class="flex gap-2">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="new-repo-private" class="mr-2">
+                                        <span class="text-sm">Private</span>
+                                    </label>
+                                    <button type="button" id="cancel-create-repo" class="px-3 py-1 bg-gray-500 text-white text-sm rounded-md hover:bg-gray-600">Cancel</button>
+                                </div>
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
@@ -105,13 +119,18 @@
                 const repos = await response.json();
                 const select = document.getElementById('repo');
                 
-                select.innerHTML = '';
-                repos.forEach(repo => {
-                    const option = document.createElement('option');
-                    option.value = repo.full_name;
-                    option.textContent = repo.name;
-                    select.appendChild(option);
-                });
+                select.innerHTML = '<option value="">Select a repository...</option><option value="__create_new__">+ Create New Repository</option>';
+                
+                if (repos && repos.length > 0) {
+                    repos.forEach(repo => {
+                        const option = document.createElement('option');
+                        option.value = repo.full_name;
+                        option.textContent = repo.name;
+                        select.appendChild(option);
+                    });
+                } else {
+                    console.warn('No repositories found');
+                }
             } catch (error) {
                 console.error('Error loading repositories:', error);
                 const select = document.getElementById('repo');
@@ -119,19 +138,106 @@
             }
         }
 
+        // Handle repository selection
+        document.getElementById('repo').addEventListener('change', (e) => {
+            const createBtn = document.getElementById('create-repo-btn');
+            const createForm = document.getElementById('create-repo-form');
+            
+            if (e.target.value === '__create_new__') {
+                createBtn.classList.remove('hidden');
+                createForm.classList.remove('hidden');
+            } else {
+                createBtn.classList.add('hidden');
+                createForm.classList.add('hidden');
+            }
+        });
+        
+        // Handle create repository button
+        document.getElementById('create-repo-btn').addEventListener('click', async () => {
+            const repoName = document.getElementById('new-repo-name').value.trim();
+            const isPrivate = document.getElementById('new-repo-private').checked;
+            
+            if (!repoName) {
+                alert('Please enter a repository name');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('name', repoName);
+                formData.append('description', 'Created via GitHub File Uploader');
+                formData.append('private', isPrivate);
+                
+                const response = await fetch(`${API_BASE}/api/repo/create`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Reload repositories and select the new one
+                    await loadRepos();
+                    document.getElementById('repo').value = result.repo.full_name;
+                    
+                    // Hide create form
+                    document.getElementById('create-repo-btn').classList.add('hidden');
+                    document.getElementById('create-repo-form').classList.add('hidden');
+                    
+                    // Clear form
+                    document.getElementById('new-repo-name').value = '';
+                    document.getElementById('new-repo-private').checked = false;
+                    
+                    alert(`Repository "${result.repo.name}" created successfully!`);
+                } else {
+                    alert(`Failed to create repository: ${result.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error creating repository:', error);
+                alert('Failed to create repository: Network error');
+            }
+        });
+        
+        // Handle cancel create repository
+        document.getElementById('cancel-create-repo').addEventListener('click', () => {
+            document.getElementById('repo').value = '';
+            document.getElementById('create-repo-btn').classList.add('hidden');
+            document.getElementById('create-repo-form').classList.add('hidden');
+            document.getElementById('new-repo-name').value = '';
+            document.getElementById('new-repo-private').checked = false;
+        });
+        
         // Handle file upload
         document.getElementById('upload-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            const repoSelect = document.getElementById('repo');
+            const selectedRepo = repoSelect.value;
+            
+            if (!selectedRepo || selectedRepo === '') {
+                alert('Please select a repository');
+                return;
+            }
+            
+            if (selectedRepo === '__create_new__') {
+                alert('Please create a repository first or select an existing one');
+                return;
+            }
             
             const formData = new FormData();
             const fileInput = document.getElementById('files');
             const files = fileInput.files;
             
+            if (!files || files.length === 0) {
+                alert('Please select files to upload');
+                return;
+            }
+            
             for (let i = 0; i < files.length; i++) {
                 formData.append('files', files[i]);
             }
             
-            formData.append('repo', document.getElementById('repo').value);
+            formData.append('repo', selectedRepo);
             formData.append('path', document.getElementById('path').value);
             formData.append('branch', document.getElementById('branch').value);
             

@@ -277,6 +277,15 @@ async def get_authenticated_user(request: Request) -> Dict:
     
     return session
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "service": "GitHub File Uploader API"
+    }
+
 @app.get("/api/user")
 async def get_user(request: Request):
     """Get current user info"""
